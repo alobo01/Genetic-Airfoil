@@ -160,12 +160,12 @@ def main():
             
             xu_rotated, yu_rotated = rotate_airfoil(xu, yu, -alpha)
             xl_rotated, yl_rotated = rotate_airfoil(xl, yl, -alpha)
-            yc_rotated = rotate_airfoil(x, yc, -alpha)[1]  # Only y-coordinates are needed for yc
+            x_rotated, yc_rotated = rotate_airfoil(x, yc, -alpha)  # Only y-coordinates are needed for yc
 
             # Rotate optimized airfoil coordinates
             xu_opt_rotated, yu_opt_rotated = rotate_airfoil(xu_opt, yu_opt, -alpha)
             xl_opt_rotated, yl_opt_rotated = rotate_airfoil(xl_opt, yl_opt, -alpha)
-            yc_opt_rotated = rotate_airfoil(x, yc_opt, -alpha)[1]  # Only y-coordinates are needed for yc_opt
+            x_rotated, yc_opt_rotated = rotate_airfoil(x, yc_opt, -alpha)
 
             # Plot original airfoil
             ax1.plot(xu_rotated, yu_rotated, 'b', label='Original')
@@ -175,7 +175,7 @@ def main():
             # Plot optimized airfoil
             ax1.plot(xu_opt_rotated, yu_opt_rotated, 'r', label='Optimized')
             ax1.plot(xl_opt_rotated, yl_opt_rotated, 'r')
-            ax1.plot(x, yc_opt_rotated, 'r--')
+            ax1.plot(x_rotated, yc_opt_rotated, 'r--')
 
             # Set labels and title
             ax1.set_xlabel("x/c")
