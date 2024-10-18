@@ -25,6 +25,95 @@ These parameters allow for the systematic generation of airfoil shapes for diffe
 - **Angle of Attack (AOA, $\alpha$)**: The angle between the chord line of the airfoil and the oncoming airflow. It directly influences the lift produced by the airfoil and, if increased too much, can lead to flow separation and stall.
 - **Reynolds Number ($Re$)**: A dimensionless quantity representing the ratio of inertial forces to viscous forces in the flow. It helps determine the nature of the flow (laminar or turbulent) and affects the calculation of the skin friction drag coefficient.
 
+## 2.3 Flight Phase Constraints
+
+During airfoil optimization, different flight phases (takeoff, cruise, and landing) have specific aerodynamic requirements. These constraints ensure the airfoil performs adequately during all flight stages:
+
+### 2.3.1 Takeoff Constraints
+
+During takeoff, the airfoil must generate enough lift to overcome the aircraft's weight and enable safe ascent. The following constraints are typically considered:
+
+- **Lift Coefficient**: 
+  $$
+  C_L \in [1.5, 2.5]
+  $$
+  A high $ C_L $ is necessary to generate sufficient lift at lower speeds.
+
+- **Airspeed**: 
+  $$
+  V_{\text{takeoff}} \in [60, 180] \, \text{knots}
+  $$
+  The takeoff airspeed depends on aircraft size and configuration.
+
+- **Angle of Attack (AOA)**:
+  $$
+  \alpha_{\text{takeoff}} \in [5^\circ, 15^\circ]
+  $$
+  The angle of attack must be managed to avoid stall while generating adequate lift.
+
+### 2.3.2 Cruise Constraints
+
+For efficient cruising, the airfoil must be optimized for fuel efficiency and stable flight at higher speeds. The following constraints are typical:
+
+- **Lift Coefficient**: 
+  $$
+  C_L \in [0.3, 0.6]
+  $$
+  A lower $ C_L $ is typical for higher-speed flight at lower angles of attack.
+
+- **Airspeed**: 
+  $$
+  V_{\text{cruise}} \in [100, 500] \, \text{knots}
+  $$
+  The cruise speed varies widely based on aircraft type.
+
+- **Angle of Attack (AOA)**:
+  $$
+  \alpha_{\text{cruise}} \in [2^\circ, 4^\circ]
+  $$
+  The AOA during cruise is lower for improved efficiency.
+
+- **Lift-to-Drag Ratio (L/D)**:
+  $$
+  (L/D)_{\text{cruise}} \in [15, 23]
+  $$
+  A high lift-to-drag ratio is crucial for reducing fuel consumption and increasing range.
+
+### 2.3.3 Landing Constraints
+
+During landing, the airfoil must allow for controlled descent and safe touchdown. The following constraints are typically considered:
+
+- **Lift Coefficient**: 
+  $$
+  C_L \in [1.5, 2.5]
+  $$
+  Like takeoff, a high $ C_L $ helps maintain lift at slower speeds.
+
+- **Airspeed**: 
+  $$
+  V_{\text{landing}} \in [50, 160] \, \text{knots}
+  $$
+  Lower speeds are necessary to ensure a controlled landing.
+
+- **Angle of Attack (AOA)**:
+  $$
+  \alpha_{\text{landing}} \in [8^\circ, 12^\circ]
+  $$
+  A higher AOA is typical, but must be carefully controlled to avoid stall.
+
+### 2.3.4 General Minimum Lift and Stall Considerations
+
+- **Stall Speed**: The airfoil must maintain lift above its stall speed. If airspeed falls below this, the aircraft will no longer generate sufficient lift.
+- **Stall Angle of Attack**: The stall angle of attack, typically in the range of:
+  $$
+  \alpha_{\text{stall}} \in [15^\circ, 20^\circ]
+  $$
+  is the maximum angle before airflow separates from the wing, leading to a rapid decrease in lift.
+
+These constraints form the foundation of the airfoil optimization process to ensure safe and efficient operation during all flight phases.
+
+
+
 ## 3. Mathematical Formulation
 
 ### 3.1 Airfoil Parameterization

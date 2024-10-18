@@ -37,53 +37,55 @@ def naca_4digit(m, p, t, x):
     
     return xu, yu, xl, yl, yc
 
+
+
 def calculate_coefficients(alpha, m, p, t, Re, M):
     # Convert percentages to decimals
-    m = m / 100
-    p = p / 10
-    t = t / 100
-    
-    # Convert angle of attack to radians
-    alpha_rad = np.deg2rad(alpha)
-    
-    # Prandtl-Glauert compressibility correction
-    beta = np.sqrt(1 - M**2)
+    m, p, t = m / 100, p / 10, t / 100
+
+    alpha_rad = np.radians(alpha)
+
+    # Prandtl-Glauert compressibility correction for subsonic flows
+    if M < 1:
+        beta = np.sqrt(1 - M**2)
+    else:
+        beta = 1  # Avoid imaginary values for supersonic speeds
     
     # Estimate effective camber and angle of zero lift
-    eps = m / 0.9  # Approximation of effective camber
-    alpha_0 = -2 * np.pi * eps  # Angle of zero lift
+    eps = m / 0.9  # Approximation for camber line effects
+    alpha_0 = -2 * np.pi * eps  # Effective zero-lift angle
+
+    # Stall and max lift assumptions (improvement opportunity)
+    Cl_max = 2 * np.pi * np.radians(15)  # Simplified assumption of max Cl
+    Cl = 2 * np.pi * (alpha_rad - alpha_0) / beta
     
-    # Lift coefficient calculation (including stall effects)
-    Cl_max = 2 * np.pi * (15 * np.pi/180 - alpha_0)  # Approximate max Cl
-    Cl_linear = 2 * np.pi * (alpha_rad - alpha_0) / beta
-    Cl = Cl_max * np.tanh(Cl_linear / Cl_max)
-    
-    # Drag coefficient calculation
-    # Skin friction coefficient (Schiller-Naumann correlation)
-    Cf = (0.074 * (Re**-0.2)) / (1 + (Re / 3.7e5)**0.62)
-    
-    # Form factor for drag due to thickness
+    # Nonlinear stall correction
+    Cl = Cl_max * np.tanh(Cl / Cl_max)
+
+    # Drag estimation: skin friction, pressure drag, induced drag
+    Cf = (0.074 * Re**-0.2) / (1 + (Re / 3.7e5)**0.62)
     FF = (1 + 2.7*t + 100*t**4)
     
-    # Pressure drag coefficient
-    Cd_p = 2 * eps**2 * ((alpha - np.rad2deg(alpha_0))/0.15)**2  # Quadratic in effective angle of attack
+    # Quadratic drag increase due to effective camber
+    Cd_p = 2 * eps**2 * ((alpha - np.degrees(alpha_0)) / 0.15)**2
+
+    # Induced drag, with aspect ratio and Oswald efficiency factor
+    AR = 8
+    e = 0.9
+    Cd_i = Cl**2 / (np.pi * AR * e)
     
-    # Induced drag coefficient
-    e = 0.9  # Oswald efficiency factor
-    AR = 8  # Assuming an aspect ratio of 8
-    Cd_i = Cl**2 / (np.pi * e * AR)
-    
-    # Wave drag (rudimentary approximation)
-    Mdd = 0.87 - 0.108 * t - 0.1 * Cl  # Drag divergence Mach number
+    # Wave drag based on Mach number if beyond drag divergence Mach
+    Mdd = 0.87 - 0.108 * t - 0.1 * Cl
     Cd_w = 0 if M < Mdd else 20 * (M - Mdd)**4
-    
+
     # Total drag coefficient
     Cd = Cf * FF + Cd_p + Cd_i + Cd_w
-    
-    # Moment coefficient (approximation)
-    Cm = -0.1 * Cl - 0.25 * eps  # Assuming the aerodynamic center is at 25% chord
-    
+
+    # Moment coefficient
+    Cm = -0.1 * Cl - 0.25 * eps
+
     return Cl, Cd, Cm
+
 
 def objective_function(params, alpha, Re, M):
     m, p, t = params
