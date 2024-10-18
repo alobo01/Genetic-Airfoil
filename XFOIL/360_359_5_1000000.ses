@@ -1,0 +1,12 @@
+load XFOIL\360.dat
+ppar
+n 180
+
+
+oper
+visc 1000000
+alfa 5
+dump XFOIL\360_359_5_1000000.res
+visc
+
+quit
