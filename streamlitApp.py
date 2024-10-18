@@ -158,12 +158,26 @@ def main():
             xu, yu, xl, yl, yc = naca_4digit(m/100, p/10, t/100, x)
             xu_opt, yu_opt, xl_opt, yl_opt, yc_opt = naca_4digit(opt_m/100, opt_p/10, opt_t/100, x)
             
-            ax1.plot(xu, yu, 'b', label='Original')
-            ax1.plot(xl, yl, 'b')
-            ax1.plot(x, yc, 'b--')
-            ax1.plot(xu_opt, yu_opt, 'r', label='Optimized')
-            ax1.plot(xl_opt, yl_opt, 'r')
-            ax1.plot(x, yc_opt, 'r--')
+            xu_rotated, yu_rotated = rotate_airfoil(xu, yu, -alpha)
+            xl_rotated, yl_rotated = rotate_airfoil(xl, yl, -alpha)
+            yc_rotated = rotate_airfoil(x, yc, -alpha)[1]  # Only y-coordinates are needed for yc
+
+            # Rotate optimized airfoil coordinates
+            xu_opt_rotated, yu_opt_rotated = rotate_airfoil(xu_opt, yu_opt, -alpha)
+            xl_opt_rotated, yl_opt_rotated = rotate_airfoil(xl_opt, yl_opt, -alpha)
+            yc_opt_rotated = rotate_airfoil(x, yc_opt, -alpha)[1]  # Only y-coordinates are needed for yc_opt
+
+            # Plot original airfoil
+            ax1.plot(xu_rotated, yu_rotated, 'b', label='Original')
+            ax1.plot(xl_rotated, yl_rotated, 'b')
+            ax1.plot(x, yc_rotated, 'b--')
+
+            # Plot optimized airfoil
+            ax1.plot(xu_opt_rotated, yu_opt_rotated, 'r', label='Optimized')
+            ax1.plot(xl_opt_rotated, yl_opt_rotated, 'r')
+            ax1.plot(x, yc_opt_rotated, 'r--')
+
+            # Set labels and title
             ax1.set_xlabel("x/c")
             ax1.set_ylabel("y/c")
             ax1.set_title("Airfoil Shape Comparison")
