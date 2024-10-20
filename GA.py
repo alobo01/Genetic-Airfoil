@@ -41,8 +41,8 @@ class GeneticAlgorithm(ABC):
         """
         return [self.create_individual() for _ in range(size)]
 
-    def crossover(self, parent1, parent2):
-        """Performs crossover between two parents to produce two offspring.
+    def one_point_crossover(self, parent1, parent2):
+        """Performs one-point crossover between two parents to produce two offspring.
 
         Args:
             parent1 (list): The first parent individual.
@@ -55,6 +55,68 @@ class GeneticAlgorithm(ABC):
         child1 = parent1[:crossover_point] + parent2[crossover_point:]
         child2 = parent2[:crossover_point] + parent1[crossover_point:]
         return child1, child2
+
+    def two_point_crossover(self, parent1, parent2):
+        """Performs two-point crossover between two parents to produce two offspring.
+
+        Args:
+            parent1 (list): The first parent individual.
+            parent2 (list): The second parent individual.
+
+        Returns:
+            tuple: Two offspring individuals resulting from the crossover.
+        """
+        point1 = random.randint(1, len(parent1) - 2)
+        point2 = random.randint(point1 + 1, len(parent1) - 1)
+        
+        child1 = (parent1[:point1] + parent2[point1:point2] + parent1[point2:])
+        child2 = (parent2[:point1] + parent1[point1:point2] + parent2[point2:])
+        
+        return child1, child2
+
+    def uniform_crossover(self, parent1, parent2, crossover_prob=0.5):
+        """Performs uniform crossover between two parents to produce two offspring.
+
+        Args:
+            parent1 (list): The first parent individual.
+            parent2 (list): The second parent individual.
+            crossover_prob (float): The probability of selecting genes from parent1.
+
+        Returns:
+            tuple: Two offspring individuals resulting from the crossover.
+        """
+        child1 = []
+        child2 = []
+        
+        for p1_gene, p2_gene in zip(parent1, parent2):
+            if random.random() < crossover_prob:
+                child1.append(p1_gene)
+                child2.append(p2_gene)
+            else:
+                child1.append(p2_gene)
+                child2.append(p1_gene)
+        
+        return child1, child2
+
+    def perform_crossover(self, parent1, parent2, crossover_type):
+        """Perform crossover.
+
+        Args:
+            parent1 (list): The first parent individual.
+            parent2 (list): The second parent individual.
+            crossover_type (string): The type of crossover to apply.
+
+        Returns:
+            tuple: Two offspring individuals resulting from the crossover.
+        """
+        if crossover_type == "one_point":
+            return self.one_point_crossover(parent1, parent2)
+        elif crossover_type == "two_point":
+            return self.two_point_crossover(parent1, parent2)
+        elif crossover_type == "uniform":
+            return self.uniform_crossover(parent1, parent2)
+        else:
+            raise ValueError(f"Unknown crossover type: {self.crossover_type}")
 
     def binomial_mutation(self, individual, mutpb):
         """Applies binomial mutation to an individual.
@@ -105,7 +167,7 @@ class GeneticAlgorithm(ABC):
         return mean_change < threshold and max_change < threshold
 
     def optimize(self, mu=20, lambda_=40, generations=50, crossover_prob=0.8, mutation_prob=0.1,
-                 elitism_ratio=0.1, tournament_size=3, convergence_threshold=0.001, max_no_improvement=10):
+                 elitism_ratio=0.1, tournament_size=3, convergence_threshold=0.001, max_no_improvement=10, crossover_type='one_point'):
         """Runs the genetic algorithm optimization process.
 
         Args:
@@ -153,7 +215,7 @@ class GeneticAlgorithm(ABC):
 
                 # Crossover
                 if random.random() < crossover_prob:
-                    child1, child2 = self.crossover(parent1, parent2)
+                    child1, child2 = self.perform_crossover(parent1, parent2, crossover_type)
                 else:
                     child1, child2 = parent1[:], parent2[:]
 
