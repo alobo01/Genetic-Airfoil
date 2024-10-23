@@ -178,8 +178,8 @@ if __name__=="__main__":
     magnitudes = np.full(100,1)
     x,y = compute_coordinates(magnitudes)
     save_to_xfoil_dat(os.path.join("Coordinates/",datFilename),x,y)
-    #apm = AirfoilPanelMethod(airfoil_file=datFilename)
-    apm = AirfoilPanelMethod(NACA="2412",useNACA=True)
+    apm = AirfoilPanelMethod(airfoil_file=datFilename)
+    #apm = AirfoilPanelMethod(NACA="2412",useNACA=True)
     apm.print_comparison()
     objective = apm.xFoilCL
     if apm.xFoilCD>=0.01:
@@ -194,4 +194,4 @@ if __name__=="__main__":
     plt.tight_layout()
 
     # Display the plot
-    plt.show()
+    plt.show(block=True)
