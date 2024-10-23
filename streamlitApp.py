@@ -108,6 +108,163 @@ def optimize_airfoil(alpha, Re, M, initial_m, initial_p, initial_t):
     
     return result.x
 
+def calculate_coefficients_from_xy(alpha, x_coords, y_coords, Re, M):
+    """
+    Calculate lift, drag, and moment coefficients from airfoil geometry using the panel method.
+    
+    Parameters:
+    alpha (float): Angle of attack in degrees.
+    x_coords (array): x-coordinates of the airfoil surface.
+    y_coords (array): y-coordinates of the airfoil surface.
+    Re (float): Reynolds number.
+    M (float): Mach number.
+    
+    Returns:
+    Cl (float): Lift coefficient.
+    Cd (float): Drag coefficient.
+    Cm (float): Moment coefficient about the leading edge.
+    """
+    # Convert angle of attack to radians
+    alpha_rad = np.radians(alpha)
+    
+    # Number of panels (one less than number of points)
+    N = len(x_coords) - 1
+    
+    # Initialize arrays for panel method
+    # Theory: Discretization of airfoil surface into panels
+    x_panel = np.zeros(N)
+    y_panel = np.zeros(N)
+    S = np.zeros(N)         # Length of each panel
+    theta = np.zeros(N)     # Angle of each panel with x-axis
+    xc = np.zeros(N)        # x-coordinate of control point
+    yc = np.zeros(N)        # y-coordinate of control point
+    
+    for i in range(N):
+        # Calculate panel nodes
+        x_panel[i] = (x_coords[i] + x_coords[i+1]) / 2
+        y_panel[i] = (y_coords[i] + y_coords[i+1]) / 2
+        
+        # Calculate length of panel
+        S[i] = np.sqrt((x_coords[i+1] - x_coords[i])**2 + (y_coords[i+1] - y_coords[i])**2)
+        
+        # Calculate angle of panel
+        theta[i] = np.arctan2(y_coords[i+1] - y_coords[i], x_coords[i+1] - x_coords[i])
+        
+        # Calculate control point location (midpoint of panel)
+        xc[i] = (x_coords[i] + x_coords[i+1]) / 2
+        yc[i] = (y_coords[i] + y_coords[i+1]) / 2
+    
+    # Initialize influence coefficient matrices
+    # Theory: Panel method influence coefficients based on potential flow
+    An = np.zeros((N, N))  # Normal velocity influence coefficients
+    At = np.zeros((N, N))  # Tangential velocity influence coefficients
+    
+    for i in range(N):
+        for j in range(N):
+            if i != j:
+                # Calculate influence coefficients using source panel theory
+                # Based on the integral solutions of Laplace's equation for panels
+                dx = xc[i] - x_panel[j]
+                dy = yc[i] - y_panel[j]
+                r = np.sqrt(dx**2 + dy**2)
+                phi = np.arctan2(dy, dx)
+                dphi = phi - theta[j]
+                
+                # Normal and tangential influence coefficients
+                An[i, j] = -np.sin(dphi) / (2 * np.pi * r)
+                At[i, j] = np.cos(dphi) / (2 * np.pi * r)
+            else:
+                # Diagonal terms (self-influence)
+                # According to panel method theory, these are special cases
+                An[i, j] = 0.5
+                At[i, j] = 0
+    
+    # Right-hand side vector for boundary conditions
+    # Theory: Applying the no-penetration boundary condition
+    RHS = -np.sin(theta - alpha_rad)
+    
+    # Solve for source strengths (sigma)
+    # Theory: Linear system arising from discretized boundary conditions
+    sigma = np.linalg.solve(An, RHS)
+    
+    # Calculate tangential velocities on the surface
+    # Theory: Sum of freestream and induced velocities
+    Vt = np.cos(theta - alpha_rad)
+    for i in range(N):
+        V_induced = 0
+        for j in range(N):
+            V_induced += At[i, j] * sigma[j] * S[j]
+        Vt[i] += V_induced
+    
+    # Apply Kutta condition at trailing edge
+    # Theory: Ensures smooth flow at trailing edge (circulation)
+    gamma = sum(sigma * S)
+    Vt -= gamma / (2 * np.pi)
+    
+    # Calculate pressure coefficient at control points
+    # Theory: Bernoulli's equation relating pressure and velocity
+    Cp = 1 - Vt**2 / (np.cos(alpha_rad))**2
+    
+    # Integrate pressure coefficient to find lift coefficient
+    # Theory: Integration over the airfoil surface
+    Cl = 0
+    Cm = 0
+    for i in range(N):
+        # Calculate differential lift
+        dL = -Cp[i] * np.sin(theta[i]) * S[i]
+        Cl += dL
+        
+        # Calculate differential moment about leading edge
+        xi = xc[i] * np.cos(alpha_rad) + yc[i] * np.sin(alpha_rad)
+        dM = -Cp[i] * xi * S[i]
+        Cm += dM
+    
+    # Normalize lift and moment coefficients by chord length
+    c = max(x_coords) - min(x_coords)  # Chord length
+    Cl /= c
+    Cm /= c**2
+    
+    # Estimate drag coefficient
+    # Theory: Skin friction drag based on boundary layer theory
+    # Determine if flow is laminar or turbulent
+    Cf = np.zeros(N)
+    Rex = Re * (xc - min(x_coords)) / c  # Local Reynolds number
+    for i in range(N):
+        if Rex[i] < 5e5:
+            # Laminar flow skin friction coefficient
+            # Blasius solution for laminar boundary layer
+            Cf[i] = 1.328 / np.sqrt(Rex[i])
+        else:
+            # Turbulent flow skin friction coefficient
+            # Empirical correlation for turbulent boundary layer
+            Cf[i] = 0.455 / (np.log10(Rex[i]))**2.58
+    
+    # Total skin friction drag coefficient
+    # Theory: Integration over the wetted surface area
+    Cd_friction = sum(Cf * (S / c))
+    
+    # Pressure drag due to separation (simplified assumption)
+    # For inviscid flow, pressure drag is zero; in real flow, separation causes pressure drag
+    Cd_pressure = 0  # Assuming attached flow (improvement opportunity)
+    
+    # Induced drag for finite wings (not applicable for 2D airfoil)
+    Cd_induced = 0  # For 2D airfoil in incompressible flow
+    
+    # Compressibility correction for pressure coefficient
+    # Theory: Prandtl-Glauert rule for subsonic compressible flow
+    if M < 0.3:
+        beta = 1  # Incompressible flow assumption
+    else:
+        beta = np.sqrt(1 - M**2)
+        Cp /= beta  # Adjust Cp for compressibility effects
+    
+    # Total drag coefficient
+    Cd = Cd_friction + Cd_pressure + Cd_induced
+    
+    return Cl, Cd, Cm
+
+
+
 def main():
     st.title("Comprehensive NACA 4-Digit Airfoil Analysis and Optimization")
     

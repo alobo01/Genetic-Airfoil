@@ -7,7 +7,7 @@
             "request": "launch",
             "program": "${file}",
             "console": "integratedTerminal",
-            "justMyCode": false  // Set this to false to step into libraries
+            "justMyCode": true  // Set this to false to step into libraries
         }
     ]
 }
