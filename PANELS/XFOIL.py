@@ -26,7 +26,7 @@ from tkinter import Tk                                                          
 from tkinter.filedialog import askopenfilename                                  # For input file dialog box
 import ntpath                                                                   # For file path splitting
 
-def XFOIL(NACA,PPAR,AoA,fileName,useNACA=False,Mach = 0.5, Re= 500000):
+def XFOIL(NACA,PPAR,AoA,fileName,useNACA=False,Mach = 0.5, Re= 600000):
 
     # %% CALL XFOIL FROM MATLAB
     
@@ -74,11 +74,10 @@ def XFOIL(NACA,PPAR,AoA,fileName,useNACA=False,Mach = 0.5, Re= 500000):
     
     # Get Cp and polar data
     fid.write("OPER\n")                                                         # Enter OPER menu
-    fid.write("Mach " + str(Mach) + "\n")                                        # Set Mach of attack
+    fid.write("Visc " + str(Re) + "\n")                                           # Set Reynolds number
     fid.write("Pacc 1 \n")                                                      # Begin polar accumulation
     fid.write("\n\n")                                                           # Don't enter save or dump file names
     fid.write("Alfa " + str(AoA) + "\n")                                        # Set angle of attack
-    fid.write("Re " + str(Re) + "\n")                                           # Set Re of attack
     fid.write("CPWR " + saveFlnmCp + "\n")                                      # Write the Cp file
     fid.write("PWRT\n")                                                         # Save the polar data
     fid.write(saveFlnmPol + "\n")                                               # Save polar data to this file

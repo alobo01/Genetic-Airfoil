@@ -8,7 +8,7 @@ from PANELS.STREAMLINE_SPM import STREAMLINE_SPM
 from PANELS.XFOIL import XFOIL
 
 class AirfoilPanelMethod:
-    def __init__(self, Vinf=1, AoA=0, NACA='2412', airfoil_file="circle.dat", useNACA=False):
+    def __init__(self, Vinf=1, AoA=0, NACA='2412', airfoil_file="circle.dat", useNACA=False, ReynoldsNumber= 600000):
         """
         Initialize the airfoil panel method with the given parameters.
 
@@ -24,6 +24,7 @@ class AirfoilPanelMethod:
         self.NACA = NACA
         self.airfoil_file = airfoil_file
         self.useNACA = useNACA
+        self.ReynoldsNumber = ReynoldsNumber
         self.setup()
 
     def setup(self):
@@ -35,7 +36,7 @@ class AirfoilPanelMethod:
         PPAR = ['170', '4', '1', '1', '1 1', '1 1']
         
         # Get XFOIL results for the prescribed airfoil
-        xFoilResults = XFOIL(self.NACA, PPAR, self.AoA, self.airfoil_file, useNACA=self.useNACA)
+        xFoilResults = XFOIL(self.NACA, PPAR, self.AoA, self.airfoil_file, useNACA=self.useNACA, Re=self.ReynoldsNumber)
 
         # Separate out XFOIL results and make them available as attributes
         self.afName = xFoilResults[0]        # Airfoil name
@@ -119,8 +120,8 @@ class AirfoilPanelMethod:
     def setup_plots(self):
         """Setup the grid for plotting streamlines and pressure contours."""
         self.nGridX, self.nGridY = 100, 100
-        self.xVals = [-1.5, 1.5]
-        self.yVals = [-1.5, 1.5]
+        self.xVals = [-0.5, 1]
+        self.yVals = [-0.5, 0.5]
         self.Xgrid = np.linspace(self.xVals[0], self.xVals[1], self.nGridX)
         self.Ygrid = np.linspace(self.yVals[0], self.yVals[1], self.nGridY)
         self.XX, self.YY = np.meshgrid(self.Xgrid, self.Ygrid)
@@ -178,8 +179,8 @@ if __name__=="__main__":
     magnitudes = np.full(100,1)
     x,y = compute_coordinates(magnitudes)
     save_to_xfoil_dat(os.path.join("Coordinates/",datFilename),x,y)
-    apm = AirfoilPanelMethod(airfoil_file=datFilename)
-    #apm = AirfoilPanelMethod(NACA="2412",useNACA=True)
+    #apm = AirfoilPanelMethod(airfoil_file=datFilename) 
+    apm = AirfoilPanelMethod(NACA="2412",useNACA=True,AoA=10,ReynoldsNumber=600000)
     apm.print_comparison()
     objective = apm.xFoilCL
     if apm.xFoilCD>=0.01:
