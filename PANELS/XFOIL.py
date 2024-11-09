@@ -126,10 +126,10 @@ def XFOIL(NACA,PPAR,AoA,fileName,useNACA=False,Mach = 0.5, Re= 600000):
     dataBufferPol = np.loadtxt(saveFlnmPol, skiprows=12)                        # Read the CL, CD, and CM data from the data file
     
     # Extract data from the loaded dataBuffer array
-    xFoilResults[6] = dataBufferPol[1]                                          # Lift coefficient
-    xFoilResults[7] = dataBufferPol[2]                                          # Drag coefficient
-    xFoilResults[8] = dataBufferPol[4]                                          # Moment coefficient
-
+    if len(dataBufferPol)>0:
+        xFoilResults[6] = dataBufferPol[1]                                          # Lift coefficient
+        xFoilResults[7] = dataBufferPol[2]                                          # Drag coefficient
+        xFoilResults[8] = dataBufferPol[4]                                          # Moment coefficient
     # Delete file after loading
     if os.path.exists(saveFlnmPol):                                             # If filename exists
         os.remove(saveFlnmPol)                                                  # Delete the file

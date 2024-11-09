@@ -190,10 +190,20 @@ class GeneticAlgorithm(ABC):
         population = self.create_population(mu)
 
         actual_generation = 0
-
+        # We add caching to speed up the process
+        cache = {}
         while actual_generation < generations:
-            # Evaluate fitness of current population
-            fitness_values = [self.fitness(ind) for ind in population]
+            # Evaluate fitness of current population with caching
+            fitness_values = []
+            for ind in population:
+                # Check if individual fitness is already in cache
+                if str(ind) in cache:
+                    fitness = cache[str(ind)]
+                else:
+                    # Calculate fitness and store it in cache
+                    fitness = self.fitness(ind)
+                    cache[str(ind)] = fitness
+                fitness_values.append(fitness)
             mean_fitness = sum(fitness_values) / len(fitness_values)
             max_fitness = max(fitness_values)
             self.fitness_history.append((mean_fitness, max_fitness))
@@ -286,6 +296,7 @@ def gray_bits_to_int(bits):
     gray = int("".join(map(str, bits)), 2)
     return gray_to_binary(gray)
 
+
 class AirfoilGAOptimization(GeneticAlgorithm):
     """Genetic Algorithm for optimizing airfoil parameters."""
 
@@ -305,6 +316,7 @@ class AirfoilGAOptimization(GeneticAlgorithm):
         self.p_bits = 4  # Number of bits for p parameter
         self.t_bits = 7  # Number of bits for t parameter
         self.n_bits = self.m_bits + self.p_bits + self.t_bits  # Total number of bits per individual
+    
 
     def fitness(self, individual):
         """Calculates the fitness of an individual based on airfoil performance.
@@ -319,7 +331,7 @@ class AirfoilGAOptimization(GeneticAlgorithm):
             # Decode the individual into parameters m, p, t
             m, p, t = self.decode(individual)
             naca_code = f"{m}{p}{t:02d}"
-            AoAR = 5 * (np.pi / 180)  # Angle of attack in radians
+            AoAR = 5 
             
             # PPAR menu options for XFOIL
             PPAR = ['170', '4', '1', '1', '1 1', '1 1']
