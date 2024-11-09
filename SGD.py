@@ -24,13 +24,16 @@ class SGDOptimizer(ABC):
         """
         pass
 
-    def optimize(self, initial_params, learning_rate=0.01, epochs=100,
-                tol=1e-6, verbose=True):
-        """Runs the SGD optimization process.
+    def optimize(self, initial_params, learning_rate=0.01, beta1=0.9, beta2=0.999, epsilon=1e-8, epochs=100,
+                 tol=1e-6, verbose=True):
+        """Runs the Adam optimization process.
 
         Args:
             initial_params (np.array): Initial values for the parameters.
-            learning_rate (float): The learning rate for SGD updates.
+            learning_rate (float): The learning rate for Adam updates.
+            beta1 (float): Exponential decay rate for the first moment estimate (momentum).
+            beta2 (float): Exponential decay rate for the second moment estimate (adaptive learning rate).
+            epsilon (float): Small constant for numerical stability.
             epochs (int): The number of optimization steps.
             tol (float): Tolerance for convergence.
             verbose (bool): Whether to print progress.
@@ -39,13 +42,25 @@ class SGDOptimizer(ABC):
             np.array: The best parameters found.
         """
         params = np.array(initial_params, dtype=float)
+        m = np.zeros_like(params)  # Initialize first moment vector
+        v = np.zeros_like(params)  # Initialize second moment vector
         self.best_objective = self.objective(params)
         self.best_params = params.copy()
         self.history.append(self.best_objective)
 
         for epoch in range(epochs):
             grad = self.compute_gradient(params)
-            params += learning_rate * grad  # Ascending gradient since we maximize objective
+
+            # Update biased first and second moment estimates
+            m = beta1 * m + (1 - beta1) * grad
+            v = beta2 * v + (1 - beta2) * (grad ** 2)
+
+            # Correct bias in moment estimates
+            m_hat = m / (1 - beta1 ** (epoch + 1))
+            v_hat = v / (1 - beta2 ** (epoch + 1))
+
+            # Update parameters
+            params += learning_rate * m_hat / (np.sqrt(v_hat) + epsilon)
 
             # Ensure parameters remain within their valid ranges
             params = self.enforce_bounds(params)
@@ -53,9 +68,7 @@ class SGDOptimizer(ABC):
             current_objective = self.objective(params)
             self.history.append(current_objective)
 
-            if current_objective > self.best_objective:
-                self.best_objective = current_objective
-                self.best_params = params.copy()
+            
 
             if verbose and epoch % 10 == 0:
                 print(f"Epoch {epoch}: Objective = {current_objective:.6f}, Params = {params}")
@@ -65,10 +78,13 @@ class SGDOptimizer(ABC):
                 if verbose:
                     print(f"Convergence detected at epoch {epoch}.")
                 break
-
+            
+            if current_objective > self.best_objective:
+                self.best_objective = current_objective
+                self.best_params = params.copy()
         return self.best_params
 
-    def compute_gradient(self, params, epsilon=1e-5):
+    def compute_gradient(self, params, epsilon=1):
         """Computes the numerical gradient of the objective function.
 
         Args:
@@ -86,6 +102,7 @@ class SGDOptimizer(ABC):
             f0 = self.objective(params)
             grad[i] = (f1 - f0) / epsilon
         return grad
+
 
     @abstractmethod
     def enforce_bounds(self, params):
@@ -126,7 +143,7 @@ class AirfoilSGDOptimization(SGDOptimizer):
         """
         m, p, t = params
         naca_code = f"{int(round(m))}{int(round(p))}{int(round(t)):02d}"
-        AoAR = self.alpha * (np.pi / 180)  # Convert angle of attack to radians
+        AoAR = self.alpha   # Convert angle of attack to radians
 
         # PPAR menu options for XFOIL (adjust as needed)
         PPAR = ['170', '4', '1', '1', '1 1', '1 1']
@@ -195,7 +212,7 @@ if __name__ == "__main__":
     initial_params = np.array([2.0, 4.0, 15.0])  # Example initial guess
 
     # Define optimization hyperparameters
-    learning_rate = 0.01
+    learning_rate = 1
     epochs = 1000
     tolerance = 1e-6
     verbose = True
