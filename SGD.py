@@ -1,7 +1,9 @@
 import numpy as np
-import random
 from abc import ABC, abstractmethod
 from PANELS.XFOIL import XFOIL  # Ensure this module is correctly imported
+import argparse
+import time
+import logging
 
 class SGDOptimizer(ABC):
     """Abstract base class for a Stochastic Gradient Descent Optimizer."""
@@ -38,12 +40,19 @@ class SGDOptimizer(ABC):
         Returns:
             np.array: The best parameters found.
         """
+        # Configure logging
+        logging_level = logging.INFO if verbose else logging.WARNING
+        logging.basicConfig(level=logging_level, format='%(message)s')
+        self.logger = logging.getLogger()
+
         params = np.array(initial_params, dtype=float)
         self.best_objective = self.objective(params)
         self.best_params = params.copy()
         self.history.append(self.best_objective)
 
-        for epoch in range(epochs):
+        self.logger.info(f"Initial Params: {params}, Objective: {self.best_objective:.6f}")
+
+        for epoch in range(1, epochs + 1):
             grad = self.compute_gradient(params)
             params += learning_rate * grad  # Ascending gradient since we maximize objective
 
@@ -57,14 +66,19 @@ class SGDOptimizer(ABC):
                 self.best_objective = current_objective
                 self.best_params = params.copy()
 
-            if verbose and epoch % 10 == 0:
-                print(f"Epoch {epoch}: Objective = {current_objective:.6f}, Params = {params}")
+            if verbose and (epoch % 10 == 0 or epoch == epochs):
+                self.logger.info(f"Epoch {epoch}: Objective = {current_objective:.6f}, Params = {params}")
 
             # Check for convergence
             if np.abs(current_objective - self.best_objective) < tol:
                 if verbose:
-                    print(f"Convergence detected at epoch {epoch}.")
+                    self.logger.info(f"Convergence detected at epoch {epoch}.")
                 break
+
+        # After optimization
+        num_xfoil_calls = len(self.history)  # Assuming one XFOIL call per epoch
+        self.logger.info(f"Optimization completed at epoch {epoch}.")
+        self.logger.info(f"Total XFOIL calculations: {num_xfoil_calls}")
 
         return self.best_params
 
@@ -102,18 +116,24 @@ class SGDOptimizer(ABC):
 class AirfoilSGDOptimization(SGDOptimizer):
     """SGD Optimizer for optimizing airfoil parameters."""
 
-    def __init__(self, alpha, Re, M):
+    def __init__(self, alpha, Re, verbose=False):
         """Initializes the airfoil optimization with given conditions.
 
         Args:
             alpha (float): Angle of attack in degrees.
             Re (float): Reynolds number.
-            M (float): Mach number.
+            verbose (bool): Whether to enable verbose output.
         """
         super().__init__()
         self.alpha = alpha
         self.Re = Re
-        self.M = M
+        self.verbose = verbose
+        # Define parameter bounds as tuples: (min, max)
+        self.bounds = {
+            'm': (0, 9),     # m between 0 and 9
+            'p': (1, 9),     # p between 1 and 9
+            't': (6, 24)     # t between 6 and 24
+        }
 
     def objective(self, params):
         """Calculates the objective based on airfoil performance.
@@ -125,7 +145,25 @@ class AirfoilSGDOptimization(SGDOptimizer):
             float: The objective value (Cl/Cd ratio).
         """
         m, p, t = params
-        naca_code = f"{int(round(m))}{int(round(p))}{int(round(t)):02d}"
+        m_int = int(round(m))
+        p_int = int(round(p))
+        t_int = int(round(t))
+
+        # Validate parameters
+        if not (self.bounds['m'][0] <= m_int <= self.bounds['m'][1]):
+            if self.verbose:
+                print(f"Invalid m value: {m_int}. Assigning low objective value.")
+            return -1e6
+        if not (self.bounds['p'][0] <= p_int <= self.bounds['p'][1]):
+            if self.verbose:
+                print(f"Invalid p value: {p_int}. Assigning low objective value.")
+            return -1e6
+        if not (self.bounds['t'][0] <= t_int <= self.bounds['t'][1]):
+            if self.verbose:
+                print(f"Invalid t value: {t_int}. Assigning low objective value.")
+            return -1e6
+
+        naca_code = f"{m_int}{p_int}{t_int:02d}"
         AoAR = self.alpha * (np.pi / 180)  # Convert angle of attack to radians
 
         # PPAR menu options for XFOIL (adjust as needed)
@@ -137,7 +175,8 @@ class AirfoilSGDOptimization(SGDOptimizer):
 
             # Check if XFOIL returned valid results
             if xFoilResults is None or len(xFoilResults) < 9:
-                print(f"XFOIL failed for NACA {naca_code}. Assigning low objective value.")
+                if self.verbose:
+                    print(f"XFOIL failed for NACA {naca_code}. Assigning low objective value.")
                 return -1e6  # Assign a very low objective to penalize
 
             # Extract results
@@ -150,12 +189,14 @@ class AirfoilSGDOptimization(SGDOptimizer):
             xFoilCL = xFoilResults[6]       # Lift coefficient CL
             xFoilCD = xFoilResults[7]       # Drag coefficient CD
 
-            # Print the coefficients for debugging
-            print(f"Airfoil NACA {naca_code}: CL={xFoilCL}, CD={xFoilCD}")
+            # Print the coefficients for debugging if verbose
+            if self.verbose:
+                print(f"Airfoil NACA {naca_code}: CL={xFoilCL}, CD={xFoilCD}")
 
             # Check if CD is valid to avoid division by zero
             if xFoilCD <= 0 or not np.isfinite(xFoilCL) or not np.isfinite(xFoilCD):
-                print(f"Invalid values for NACA {naca_code}: CL={xFoilCL}, CD={xFoilCD}. Assigning low objective value.")
+                if self.verbose:
+                    print(f"Invalid values for NACA {naca_code}: CL={xFoilCL}, CD={xFoilCD}. Assigning low objective value.")
                 return -1e6  # Assign a very low objective to penalize
 
             # Calculate objective as the CL/CD ratio
@@ -164,7 +205,8 @@ class AirfoilSGDOptimization(SGDOptimizer):
 
         except Exception as e:
             # Handle any other exception
-            print(f"Error in the objective function for NACA {naca_code}: {e}")
+            if self.verbose:
+                print(f"Error in the objective function for NACA {naca_code}: {e}")
             return -1e6  # Assign a very low objective to penalize
 
     def enforce_bounds(self, params):
@@ -177,37 +219,51 @@ class AirfoilSGDOptimization(SGDOptimizer):
             np.array: The adjusted parameters.
         """
         m, p, t = params
-        m = np.clip(m, 0, 9)    # m between 0 and 9
-        p = np.clip(p, 1, 10)   # p between 1 and 10
-        t = np.clip(t, 6, 24)   # t between 6 and 24
+        m = np.clip(m, self.bounds['m'][0], self.bounds['m'][1])
+        p = np.clip(p, self.bounds['p'][0], self.bounds['p'][1])
+        t = np.clip(t, self.bounds['t'][0], self.bounds['t'][1])
         return np.array([m, p, t])
 
-if __name__ == "__main__":
-    # Define optimization conditions
-    alpha = 5    # Angle of attack in degrees
-    Re = 1e6     # Reynolds number
-    M = 0.2      # Mach number
+def main():
+    parser = argparse.ArgumentParser(description="Stochastic Gradient Descent Optimizer for Airfoil Parameters using XFOIL.")
 
-    # Create an instance of the airfoil optimization class
-    sgd_optimizer = AirfoilSGDOptimization(alpha, Re, M)
+    # Airfoil parameters
+    parser.add_argument('--alpha', type=float, default=5, help='Angle of attack in degrees.')
+    parser.add_argument('--Re', type=float, default=1e6, help='Reynolds number.')
+
+    # Optimization hyperparameters
+    parser.add_argument('--learning_rate', type=float, default=0.01, help='Learning rate for SGD updates.')
+    parser.add_argument('--epochs', type=int, default=1000, help='Number of optimization steps.')
+    parser.add_argument('--tol', type=float, default=1e-6, help='Tolerance for convergence.')
+    parser.add_argument('--verbose', action='store_true', help='Enable verbose output.')
+
+    # Initial parameters
+    parser.add_argument('--initial_m', type=float, default=2.0, help='Initial value for m parameter.')
+    parser.add_argument('--initial_p', type=float, default=4.0, help='Initial value for p parameter.')
+    parser.add_argument('--initial_t', type=float, default=15.0, help='Initial value for t parameter.')
+
+    args = parser.parse_args()
+
+    # Create an instance of the airfoil optimization class with provided parameters
+    sgd_optimizer = AirfoilSGDOptimization(alpha=args.alpha, Re=args.Re, verbose=args.verbose)
 
     # Initialize parameters (m, p, t) within their ranges
-    initial_params = np.array([2.0, 4.0, 15.0])  # Example initial guess
+    initial_params = np.array([args.initial_m, args.initial_p, args.initial_t])
 
-    # Define optimization hyperparameters
-    learning_rate = 0.01
-    epochs = 1000
-    tolerance = 1e-6
-    verbose = True
+    start_time = time.time()
 
-    # Run the optimization
+    # Run the optimization with provided hyperparameters
     best_params = sgd_optimizer.optimize(
         initial_params=initial_params,
-        learning_rate=learning_rate,
-        epochs=epochs,
-        tol=tolerance,
-        verbose=verbose
+        learning_rate=args.learning_rate,
+        epochs=args.epochs,
+        tol=args.tol,
+        verbose=args.verbose
     )
+
+    end_time = time.time()
+
+    total_time = end_time - start_time
 
     # Extract the best parameters
     m, p, t = best_params
@@ -216,3 +272,7 @@ if __name__ == "__main__":
     print("\nOptimization Completed.")
     print("Best parameters: m = {:.2f}, p = {:.2f}, t = {:.2f}".format(m, p, t))
     print("Best objective (Cl/Cd ratio): {:.6f}".format(sgd_optimizer.best_objective))
+    print(f"Execution time: {total_time:.2f} seconds.")
+
+if __name__ == "__main__":
+    main()
