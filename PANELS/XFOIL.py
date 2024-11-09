@@ -98,7 +98,7 @@ def XFOIL(NACA,PPAR,AoA,fileName,useNACA=False,Mach = 0.5, Re= 600000):
     # Load the data from the text file
     dataBufferCp = np.loadtxt(saveFlnmCp, skiprows=3)                           # Read the X, Y, and Cp data from data file
     
-    if len(dataBufferPol)>0: 
+    if len(dataBufferCp)>0: 
         xFoilResults[1] = dataBufferCp[:,0]                                         # X-data points
         xFoilResults[2] = dataBufferCp[:,1]                                         # Y-data points
         xFoilResults[3] = dataBufferCp[:,2]                                         # Cp data
@@ -113,7 +113,7 @@ def XFOIL(NACA,PPAR,AoA,fileName,useNACA=False,Mach = 0.5, Re= 600000):
     dataBuffer = np.loadtxt(saveFlnm, skiprows=0)                               # Read the XB and YB data from the data file
     
     # Extract data from the loaded dataBuffer array
-    if len(dataBufferPol)>0:
+    if len(dataBuffer)>0:
         xFoilResults[4] = dataBuffer[:,0]                                           # Boundary point X-coordinate
         xFoilResults[5] = dataBuffer[:,1]                                           # Boundary point Y-coordinate
 
