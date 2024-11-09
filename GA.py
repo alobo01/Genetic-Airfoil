@@ -4,6 +4,9 @@ import utils
 from PANELS.STREAMLINE_SPM import STREAMLINE_SPM
 from PANELS.XFOIL import XFOIL
 import numpy as np
+import argparse
+import time
+
 class GeneticAlgorithm(ABC):
     """Abstract base class for a Genetic Algorithm."""
 
@@ -118,7 +121,7 @@ class GeneticAlgorithm(ABC):
         elif crossover_type == "uniform":
             return self.uniform_crossover(parent1, parent2)
         else:
-            raise ValueError(f"Unknown crossover type: {self.crossover_type}")
+            raise ValueError(f"Unknown crossover type: {crossover_type}")
 
     def binomial_mutation(self, individual, mutpb):
         """Applies binomial mutation to an individual.
@@ -169,7 +172,7 @@ class GeneticAlgorithm(ABC):
         return mean_change < threshold and max_change < threshold
 
     def optimize(self, mu=20, lambda_=40, generations=50, crossover_prob=0.8, mutation_prob=0.1,
-                 elitism_ratio=0.1, tournament_size=3, convergence_threshold=0.001, max_no_improvement=10, crossover_type='one_point'):
+                 elitism_ratio=0.1, tournament_size=3, convergence_threshold=0.1, max_no_improvement=10, crossover_type='one_point'):
         """Runs the genetic algorithm optimization process.
 
         Args:
@@ -197,12 +200,13 @@ class GeneticAlgorithm(ABC):
             fitness_values = []
             for ind in population:
                 # Check if individual fitness is already in cache
-                if str(ind) in cache:
-                    fitness = cache[str(ind)]
+                ind_key = str(ind)
+                if ind_key in cache:
+                    fitness = cache[ind_key]
                 else:
                     # Calculate fitness and store it in cache
                     fitness = self.fitness(ind)
-                    cache[str(ind)] = fitness
+                    cache[ind_key] = fitness
                 fitness_values.append(fitness)
             mean_fitness = sum(fitness_values) / len(fitness_values)
             max_fitness = max(fitness_values)
@@ -215,7 +219,7 @@ class GeneticAlgorithm(ABC):
 
             # Elitism: keep the best individuals
             num_elite = int(mu * elitism_ratio)
-            population = sorted(population, key=lambda ind: self.fitness(ind), reverse=True)
+            population = sorted(population, key=lambda ind: cache[str(ind)], reverse=True)
             next_gen = population[:num_elite]
 
             # Generate offspring
@@ -241,7 +245,12 @@ class GeneticAlgorithm(ABC):
             population = next_gen[:mu]  # New generation
             actual_generation += 1
 
-        best_individual = max(population, key=lambda ind: self.fitness(ind))
+        # After optimization
+        best_individual = max(population, key=lambda ind: cache[str(ind)])
+        num_xfoil_calls = len(cache)
+        print(f"Optimization completed at generation {actual_generation}.")
+        print(f"Total XFOIL calculations: {num_xfoil_calls}")
+
         return best_individual
 
 # Gray coding functions
@@ -300,18 +309,16 @@ def gray_bits_to_int(bits):
 class AirfoilGAOptimization(GeneticAlgorithm):
     """Genetic Algorithm for optimizing airfoil parameters."""
 
-    def __init__(self, alpha, Re, M):
+    def __init__(self, alpha, Re):
         """Initializes the airfoil optimization with given conditions.
 
         Args:
             alpha (float): Angle of attack in degrees.
             Re (float): Reynolds number.
-            M (float): Mach number.
         """
         super().__init__()
         self.alpha = alpha
         self.Re = Re
-        self.M = M
         self.m_bits = 4  # Number of bits for m parameter
         self.p_bits = 4  # Number of bits for p parameter
         self.t_bits = 7  # Number of bits for t parameter
@@ -331,13 +338,13 @@ class AirfoilGAOptimization(GeneticAlgorithm):
             # Decode the individual into parameters m, p, t
             m, p, t = self.decode(individual)
             naca_code = f"{m}{p}{t:02d}"
-            AoAR = 5 
+            AoAR = self.alpha  # Use the alpha provided during initialization
             
             # PPAR menu options for XFOIL
             PPAR = ['170', '4', '1', '1', '1 1', '1 1']
             
             # Get XFOIL results for the prescribed airfoil
-            xFoilResults = XFOIL(naca_code, PPAR, AoAR, 'circle', useNACA=True, Re=600000)
+            xFoilResults = XFOIL(naca_code, PPAR, AoAR, 'circle', useNACA=True, Re=self.Re)
             
             # Check if XFOIL returned valid results
             if xFoilResults is None or len(xFoilResults) < 9:
@@ -415,28 +422,58 @@ class AirfoilGAOptimization(GeneticAlgorithm):
         t_bits = int_to_gray_bits(int((t - 6) / 18 * (2**self.t_bits - 1)), self.t_bits)
         return m_bits + p_bits + t_bits
 
-alpha = 5  # Angle of attack
-Re = 1e6   # Reynolds number
-M = 0.2    # Mach number
+def main():
+    parser = argparse.ArgumentParser(description="Genetic Algorithm for Airfoil Optimization using XFOIL.")
+    
+    # Airfoil parameters
+    parser.add_argument('--alpha', type=float, default=5, help='Angle of attack in degrees.')
+    parser.add_argument('--Re', type=float, default=1e6, help='Reynolds number.')
+    
+    # GA parameters
+    parser.add_argument('--mu', type=int, default=20, help='Population size.')
+    parser.add_argument('--lambda_', type=int, default=40, help='Number of offspring to generate.')
+    parser.add_argument('--generations', type=int, default=50, help='Maximum number of generations.')
+    parser.add_argument('--crossover_prob', type=float, default=0.8, help='Crossover probability.')
+    parser.add_argument('--mutation_prob', type=float, default=0.1, help='Mutation probability.')
+    parser.add_argument('--elitism_ratio', type=float, default=0.1, help='Elitism ratio.')
+    parser.add_argument('--tournament_size', type=int, default=3, help='Tournament selection size.')
+    parser.add_argument('--convergence_threshold', type=float, default=0.1, help='Convergence threshold.')
+    parser.add_argument('--max_no_improvement', type=int, default=10, help='Max generations with no improvement.')
+    parser.add_argument('--crossover_type', type=str, default='one_point', choices=['one_point', 'two_point', 'uniform'], help='Type of crossover.')
 
-# Create an instance of the airfoil optimization class
-ga_optimizer = AirfoilGAOptimization(alpha, Re, M)
+    args = parser.parse_args()
 
-# Run the optimization
-best_individual = ga_optimizer.optimize(
-    lambda_=40,
-    mu=20,
-    generations=50,    # Number of generations
-    crossover_prob=0.9, # Crossover probability
-    mutation_prob=0.1, # Mutation probability
-    elitism_ratio=0.1,  # Elitism ratio
-    tournament_size=3   # Tournament selection size
-)
+    # Create an instance of the airfoil optimization class with provided parameters
+    ga_optimizer = AirfoilGAOptimization(alpha=args.alpha, Re=args.Re)
+    
+    start_time = time.time()
 
-# Decode the best individual to get the airfoil parameters
-m, p, t = ga_optimizer.decode(best_individual)
+    # Run the optimization with provided GA parameters
+    best_individual = ga_optimizer.optimize(
+        mu=args.mu,
+        lambda_=args.lambda_,
+        generations=args.generations,
+        crossover_prob=args.crossover_prob,
+        mutation_prob=args.mutation_prob,
+        elitism_ratio=args.elitism_ratio,
+        tournament_size=args.tournament_size,
+        convergence_threshold=args.convergence_threshold,
+        max_no_improvement=args.max_no_improvement,
+        crossover_type=args.crossover_type
+    )
 
-# Print the best solution
-print("Best individual (Gray-coded):", best_individual)
-print(f"Best airfoil parameters: m={m}, p={p}, t={t}")
-print("Best fitness (Cl/Cd ratio):", ga_optimizer.fitness(best_individual))
+    end_time = time.time()
+
+    total_time = end_time - start_time
+    
+    # Decode the best individual to get the airfoil parameters
+    m, p, t = ga_optimizer.decode(best_individual)
+    
+    # Print the best solution
+    print("\nBest individual (Gray-coded):", best_individual)
+    print(f"Best airfoil parameters: m={m}, p={p}, t={t}")
+    print("Best fitness (Cl/Cd ratio):", ga_optimizer.fitness(best_individual))
+    print(f"Execution time: {total_time:.2f} seconds.")
+
+if __name__ == "__main__":
+    main()
