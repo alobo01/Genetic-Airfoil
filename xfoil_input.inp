@@ -1,0 +1,20 @@
+NACA 5309
+PPAR
+N 170
+P 4
+T 1
+R 1
+XT 1 1
+XB 1 1
+
+
+PSAV Save_5309.txt
+OPER
+Visc 1000000.0
+Pacc 1 
+
+
+Alfa 5
+CPWR Save_5309_Cp.txt
+PWRT
+Save_5309_Pol.txt
