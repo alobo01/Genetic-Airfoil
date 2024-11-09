@@ -1,7 +1,9 @@
 import random
 from abc import ABC, abstractmethod
 import utils
-
+from PANELS.STREAMLINE_SPM import STREAMLINE_SPM
+from PANELS.XFOIL import XFOIL
+import numpy as np
 class GeneticAlgorithm(ABC):
     """Abstract base class for a Genetic Algorithm."""
 
@@ -313,9 +315,49 @@ class AirfoilGAOptimization(GeneticAlgorithm):
         Returns:
             float: The fitness value (Cl/Cd) of the individual.
         """
-        m, p, t = self.decode(individual)
-        Cl, Cd, _ = utils.calculate_coefficients(self.alpha, m, p, t, self.Re, self.M)
-        return Cl / Cd
+        try:
+            # Decode the individual into parameters m, p, t
+            m, p, t = self.decode(individual)
+            naca_code = f"{m}{p}{t:02d}"
+            AoAR = 5 * (np.pi / 180)  # Angle of attack in radians
+            
+            # PPAR menu options for XFOIL
+            PPAR = ['170', '4', '1', '1', '1 1', '1 1']
+            
+            # Get XFOIL results for the prescribed airfoil
+            xFoilResults = XFOIL(naca_code, PPAR, AoAR, 'circle', useNACA=True, Re=600000)
+            
+            # Check if XFOIL returned valid results
+            if xFoilResults is None or len(xFoilResults) < 9:
+                print(f"XFOIL failed for NACA {naca_code}. Assigning negative fitness.")
+                return -1e6  # Assign a very negative fitness to penalize
+            
+            # Extract results
+            afName = xFoilResults[0]        # Airfoil name
+            xFoilX = xFoilResults[1]        # X-coordinates for Cp
+            xFoilY = xFoilResults[2]        # Y-coordinates for Cp
+            xFoilCP = xFoilResults[3]       # Pressure coefficient Cp
+            XB = xFoilResults[4]            # Leading edge X-coordinates
+            YB = xFoilResults[5]            # Leading edge Y-coordinates
+            xFoilCL = xFoilResults[6]       # Lift coefficient CL
+            xFoilCD = xFoilResults[7]       # Drag coefficient CD
+            
+            # Print the drag coefficient for debugging
+            print(f"Airfoil NACA {naca_code}: CL={xFoilCL}, CD={xFoilCD}")
+            
+            # Check if CD is valid to avoid division by zero
+            if xFoilCD <= 0 or not np.isfinite(xFoilCL) or not np.isfinite(xFoilCD):
+                print(f"Invalid values for NACA {naca_code}: CL={xFoilCL}, CD={xFoilCD}. Assigning negative fitness.")
+                return -1e6  # Assign a very negative fitness to penalize
+            
+            # Calculate fitness as the CL/CD ratio
+            fitness_value = xFoilCL / xFoilCD
+            return fitness_value
+        
+        except Exception as e:
+            # Handle any other exception
+            print(f"Error in the fitness function for NACA {naca_code}: {e}")
+            return -1e6  # Assign a very negative fitness to penalize
 
     def create_individual(self):
         """Creates a new random individual.
@@ -360,3 +402,29 @@ class AirfoilGAOptimization(GeneticAlgorithm):
         p_bits = int_to_gray_bits(int((p - 1) / 9 * (2**self.p_bits - 1)), self.p_bits)
         t_bits = int_to_gray_bits(int((t - 6) / 18 * (2**self.t_bits - 1)), self.t_bits)
         return m_bits + p_bits + t_bits
+
+alpha = 5  # Angle of attack
+Re = 1e6   # Reynolds number
+M = 0.2    # Mach number
+
+# Create an instance of the airfoil optimization class
+ga_optimizer = AirfoilGAOptimization(alpha, Re, M)
+
+# Run the optimization
+best_individual = ga_optimizer.optimize(
+    lambda_=40,
+    mu=20,
+    generations=50,    # Number of generations
+    crossover_prob=0.9, # Crossover probability
+    mutation_prob=0.1, # Mutation probability
+    elitism_ratio=0.1,  # Elitism ratio
+    tournament_size=3   # Tournament selection size
+)
+
+# Decode the best individual to get the airfoil parameters
+m, p, t = ga_optimizer.decode(best_individual)
+
+# Print the best solution
+print("Best individual (Gray-coded):", best_individual)
+print(f"Best airfoil parameters: m={m}, p={p}, t={t}")
+print("Best fitness (Cl/Cd ratio):", ga_optimizer.fitness(best_individual))
