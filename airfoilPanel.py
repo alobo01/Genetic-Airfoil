@@ -180,7 +180,7 @@ if __name__=="__main__":
     x,y = compute_coordinates(magnitudes)
     save_to_xfoil_dat(os.path.join("Coordinates/",datFilename),x,y)
     #apm = AirfoilPanelMethod(airfoil_file=datFilename) 
-    apm = AirfoilPanelMethod(NACA="2412",useNACA=True,AoA=10,ReynoldsNumber=600000)
+    apm = AirfoilPanelMethod(NACA="4616",useNACA=True,AoA=10,ReynoldsNumber=600000)
     apm.print_comparison()
     objective = apm.xFoilCL
     if apm.xFoilCD>=0.01:
