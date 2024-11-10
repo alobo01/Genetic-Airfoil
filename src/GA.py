@@ -1,12 +1,10 @@
 import random
 from abc import ABC, abstractmethod
-import utils
-from PANELS.STREAMLINE_SPM import STREAMLINE_SPM
 from PANELS.XFOIL import XFOIL
 import numpy as np
 import argparse
 import time
-import matplotlib.pyplot as plt  # Added import for plotting
+import matplotlib.pyplot as plt
 
 class GeneticAlgorithm(ABC):
     """Abstract base class for a Genetic Algorithm."""
