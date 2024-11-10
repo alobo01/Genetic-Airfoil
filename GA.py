@@ -6,6 +6,7 @@ from PANELS.XFOIL import XFOIL
 import numpy as np
 import argparse
 import time
+import matplotlib.pyplot as plt  # Added import for plotting
 
 class GeneticAlgorithm(ABC):
     """Abstract base class for a Genetic Algorithm."""
@@ -74,8 +75,8 @@ class GeneticAlgorithm(ABC):
         point1 = random.randint(1, len(parent1) - 2)
         point2 = random.randint(point1 + 1, len(parent1) - 1)
         
-        child1 = (parent1[:point1] + parent2[point1:point2] + parent1[point2:])
-        child2 = (parent2[:point1] + parent1[point1:point2] + parent2[point2:])
+        child1 = parent1[:point1] + parent2[point1:point2] + parent1[point2:]
+        child2 = parent2[:point1] + parent1[point1:point2] + parent2[point2:]
         
         return child1, child2
 
@@ -166,8 +167,8 @@ class GeneticAlgorithm(ABC):
         max_fitnesses = [max_val for _, max_val in self.fitness_history[-max_no_improvement:]]
 
         # Check relative improvement in fitness
-        mean_change = abs(mean_fitnesses[-1] - mean_fitnesses[0]) / mean_fitnesses[0]
-        max_change = abs(max_fitnesses[-1] - max_fitnesses[0]) / max_fitnesses[0]
+        mean_change = abs(mean_fitnesses[-1] - mean_fitnesses[0]) / (abs(mean_fitnesses[0]) + 1e-9)
+        max_change = abs(max_fitnesses[-1] - max_fitnesses[0]) / (abs(max_fitnesses[0]) + 1e-9)
 
         return mean_change < threshold and max_change < threshold
 
@@ -208,17 +209,21 @@ class GeneticAlgorithm(ABC):
                     fitness = self.fitness(ind)
                     cache[ind_key] = fitness
                 fitness_values.append(fitness)
+            
             mean_fitness = sum(fitness_values) / len(fitness_values)
             max_fitness = max(fitness_values)
             self.fitness_history.append((mean_fitness, max_fitness))
 
+            # Logging for debugging
+            print(f"Generation {actual_generation + 1}: Mean Fitness = {mean_fitness:.4f}, Max Fitness = {max_fitness:.4f}")
+
             # Convergence check
             if self.detect_convergence(convergence_threshold, max_no_improvement):
-                print(f"Convergence detected at generation {actual_generation}.")
+                print(f"Convergence detected at generation {actual_generation + 1}.")
                 break
 
             # Elitism: keep the best individuals
-            num_elite = int(mu * elitism_ratio)
+            num_elite = max(1, int(mu * elitism_ratio))  # Ensure at least one elite
             population = sorted(population, key=lambda ind: cache[str(ind)], reverse=True)
             next_gen = population[:num_elite]
 
@@ -252,6 +257,7 @@ class GeneticAlgorithm(ABC):
         print(f"Total XFOIL calculations: {num_xfoil_calls}")
 
         return best_individual
+
 
 # Gray coding functions
 def binary_to_gray(n):
@@ -349,7 +355,7 @@ class AirfoilGAOptimization(GeneticAlgorithm):
             # Check if XFOIL returned valid results
             if xFoilResults is None or len(xFoilResults) < 9:
                 print(f"XFOIL failed for NACA {naca_code}. Assigning negative fitness.")
-                return -1e6  # Assign a very negative fitness to penalize
+                return -1  # Assign a smaller negative fitness to penalize
             
             # Extract results
             afName = xFoilResults[0]        # Airfoil name
@@ -367,7 +373,7 @@ class AirfoilGAOptimization(GeneticAlgorithm):
             # Check if CD is valid to avoid division by zero
             if xFoilCD <= 0 or not np.isfinite(xFoilCL) or not np.isfinite(xFoilCD):
                 print(f"Invalid values for NACA {naca_code}: CL={xFoilCL}, CD={xFoilCD}. Assigning negative fitness.")
-                return -1e6  # Assign a very negative fitness to penalize
+                return -1  # Assign a smaller negative fitness to penalize
             
             # Calculate fitness as the CL/CD ratio
             fitness_value = xFoilCL / xFoilCD
@@ -376,7 +382,7 @@ class AirfoilGAOptimization(GeneticAlgorithm):
         except Exception as e:
             # Handle any other exception
             print(f"Error in the fitness function for NACA {naca_code}: {e}")
-            return -1e6  # Assign a very negative fitness to penalize
+            return -1  # Assign a smaller negative fitness to penalize
 
     def create_individual(self):
         """Creates a new random individual.
@@ -401,7 +407,7 @@ class AirfoilGAOptimization(GeneticAlgorithm):
 
         # Convert Gray-coded bits to integer and scale to appropriate ranges
         m = round(gray_bits_to_int(m_bits) / (2**self.m_bits - 1) * 9)
-        p = round(gray_bits_to_int(p_bits) / (2**self.p_bits - 1) * 9 + 1)
+        p = round(gray_bits_to_int(p_bits) / (2**self.p_bits - 1) * 9)  # Changed to 0-9
         t = round(gray_bits_to_int(t_bits) / (2**self.t_bits - 1) * 18 + 6)
 
         return m, p, t
@@ -418,7 +424,7 @@ class AirfoilGAOptimization(GeneticAlgorithm):
             list: The encoded individual represented as a list of bits.
         """
         m_bits = int_to_gray_bits(int(m / 9 * (2**self.m_bits - 1)), self.m_bits)
-        p_bits = int_to_gray_bits(int((p - 1) / 9 * (2**self.p_bits - 1)), self.p_bits)
+        p_bits = int_to_gray_bits(int(p / 9 * (2**self.p_bits - 1)), self.p_bits)  # Changed to 0-9
         t_bits = int_to_gray_bits(int((t - 6) / 18 * (2**self.t_bits - 1)), self.t_bits)
         return m_bits + p_bits + t_bits
 
@@ -474,6 +480,31 @@ def main():
     print(f"Best airfoil parameters: m={m}, p={p}, t={t}")
     print("Best fitness (Cl/Cd ratio):", ga_optimizer.fitness(best_individual))
     print(f"Execution time: {total_time:.2f} seconds.")
+    
+    # Plot the fitness improvement over generations
+    generations_range = range(1, len(ga_optimizer.fitness_history) + 1)
+    mean_fitness = [mean for mean, _ in ga_optimizer.fitness_history]
+    max_fitness = [max_val for _, max_val in ga_optimizer.fitness_history]
+
+    plt.figure(figsize=(10, 6))
+    plt.plot(generations_range, mean_fitness, label='Mean Fitness', color='blue')
+    plt.plot(generations_range, max_fitness, label='Max Fitness', color='red')
+    plt.xlabel('Generation')
+    plt.ylabel('Fitness (Cl/Cd)')
+    plt.title('Fitness Improvement Over Generations')
+    plt.legend()
+    plt.grid(True)
+    plt.tight_layout()
+    
+    # Adjust y-axis limits to better visualize negative and positive fitness values
+    combined_fitness = mean_fitness + max_fitness
+    min_fitness = min(combined_fitness)
+    max_fitness_plot = max(combined_fitness)
+    plt.ylim(min_fitness - 0.1 * abs(min_fitness), max_fitness_plot + 0.1 * abs(max_fitness_plot))
+
+    plt.savefig('fitness_improvement.png')
+
+    plt.close()
 
 if __name__ == "__main__":
     main()
