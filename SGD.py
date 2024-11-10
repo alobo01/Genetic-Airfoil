@@ -4,6 +4,7 @@ from PANELS.XFOIL import XFOIL  # Ensure this module is correctly imported
 import argparse
 import time
 import logging
+import matplotlib.pyplot as plt  # Added import for plotting
 
 class SGDOptimizer(ABC):
     """Abstract base class for a Stochastic Gradient Descent Optimizer."""
@@ -77,8 +78,6 @@ class SGDOptimizer(ABC):
             current_objective = self.objective(params)
             self.history.append(current_objective)
 
-            
-
             if verbose and epoch % 10 == 0:
                 print(f"Epoch {epoch}: Objective = {current_objective:.6f}, Params = {params}")
 
@@ -87,11 +86,11 @@ class SGDOptimizer(ABC):
                 if verbose:
                     self.logger.info(f"Convergence detected at epoch {epoch}.")
                 break
-            
+
             if current_objective > self.best_objective:
                 self.best_objective = current_objective
                 self.best_params = params.copy()
-                
+
         return self.best_params
 
     def compute_gradient(self, params, epsilon=1):
@@ -112,7 +111,6 @@ class SGDOptimizer(ABC):
             f0 = self.objective(params)
             grad[i] = (f1 - f0) / epsilon
         return grad
-
 
     @abstractmethod
     def enforce_bounds(self, params):
@@ -157,32 +155,32 @@ class AirfoilSGDOptimization(SGDOptimizer):
         Returns:
             float: The objective value (Cl/Cd ratio).
         """
-        m, p, t = params
-        m_int = int(round(m))
-        p_int = int(round(p))
-        t_int = int(round(t))
-
-        # Validate parameters
-        if not (self.bounds['m'][0] <= m_int <= self.bounds['m'][1]):
-            if self.verbose:
-                print(f"Invalid m value: {m_int}. Assigning low objective value.")
-            return -1e6
-        if not (self.bounds['p'][0] <= p_int <= self.bounds['p'][1]):
-            if self.verbose:
-                print(f"Invalid p value: {p_int}. Assigning low objective value.")
-            return -1e6
-        if not (self.bounds['t'][0] <= t_int <= self.bounds['t'][1]):
-            if self.verbose:
-                print(f"Invalid t value: {t_int}. Assigning low objective value.")
-            return -1e6
-
-        naca_code = f"{m_int}{p_int}{t_int:02d}"
-        AoAR = self.alpha   # Convert angle of attack to radians
-
-        # PPAR menu options for XFOIL (adjust as needed)
-        PPAR = ['170', '4', '1', '1', '1 1', '1 1']
-
         try:
+            m, p, t = params
+            m_int = int(round(m))
+            p_int = int(round(p))
+            t_int = int(round(t))
+
+            # Validate parameters
+            if not (self.bounds['m'][0] <= m_int <= self.bounds['m'][1]):
+                if self.verbose:
+                    print(f"Invalid m value: {m_int}. Assigning low objective value.")
+                return -1  # Assign a smaller negative objective to penalize
+            if not (self.bounds['p'][0] <= p_int <= self.bounds['p'][1]):
+                if self.verbose:
+                    print(f"Invalid p value: {p_int}. Assigning low objective value.")
+                return -1  # Assign a smaller negative objective to penalize
+            if not (self.bounds['t'][0] <= t_int <= self.bounds['t'][1]):
+                if self.verbose:
+                    print(f"Invalid t value: {t_int}. Assigning low objective value.")
+                return -1  # Assign a smaller negative objective to penalize
+
+            naca_code = f"{m_int}{p_int}{t_int:02d}"
+            AoAR = self.alpha   # Angle of attack in degrees
+
+            # PPAR menu options for XFOIL (adjust as needed)
+            PPAR = ['170', '4', '1', '1', '1 1', '1 1']
+
             # Get XFOIL results for the prescribed airfoil
             xFoilResults = XFOIL(naca_code, PPAR, AoAR, 'circle', useNACA=True, Re=self.Re)
 
@@ -190,7 +188,7 @@ class AirfoilSGDOptimization(SGDOptimizer):
             if xFoilResults is None or len(xFoilResults) < 9:
                 if self.verbose:
                     print(f"XFOIL failed for NACA {naca_code}. Assigning low objective value.")
-                return -1e6  # Assign a very low objective to penalize
+                return -1  # Assign a smaller negative objective to penalize
 
             # Extract results
             afName = xFoilResults[0]        # Airfoil name
@@ -210,12 +208,11 @@ class AirfoilSGDOptimization(SGDOptimizer):
             if xFoilCD <= 0 or not np.isfinite(xFoilCL) or not np.isfinite(xFoilCD):
                 if self.verbose:
                     print(f"Invalid values for NACA {naca_code}: CL={xFoilCL}, CD={xFoilCD}. Assigning low objective value.")
-                return -1e6  # Assign a very low objective to penalize
+                return -1  # Assign a smaller negative objective to penalize
 
             # Calculate objective as the CL/CD ratio
             objective_value = xFoilCL / xFoilCD
             return objective_value
-
         except Exception as e:
             # Handle any other exception
             if self.verbose:
@@ -263,16 +260,9 @@ def main():
     # Initialize parameters (m, p, t) within their ranges
     initial_params = np.array([args.initial_m, args.initial_p, args.initial_t])
 
-    start_time = time.time()
-    initial_params = np.array([2.0, 4.0, 15.0])  # Example initial guess
-
-    # Define optimization hyperparameters
-    learning_rate = 1
-    epochs = 1000
-    tolerance = 1e-6
-    verbose = True
-
     # Run the optimization with provided hyperparameters
+    start_time = time.time()
+
     best_params = sgd_optimizer.optimize(
         initial_params=initial_params,
         learning_rate=args.learning_rate,
@@ -291,8 +281,29 @@ def main():
     # Print the best solution
     print("\nOptimization Completed.")
     print("Best parameters: m = {:.2f}, p = {:.2f}, t = {:.2f}".format(m, p, t))
-    print("Best objective (Cl/Cd ratio): {:.6f}".format(sgd_optimizer.best_objective))
     print(f"Execution time: {total_time:.2f} seconds.")
+
+    # Plot the objective improvement over epochs
+    epochs_range = range(1, len(sgd_optimizer.history) + 1)
+    objective_values = sgd_optimizer.history
+
+    plt.figure(figsize=(10, 6))
+    plt.plot(epochs_range, objective_values, label='Objective (Cl/Cd)', color='blue')
+    plt.xlabel('Epoch')
+    plt.ylabel('Objective Value (Cl/Cd)')
+    plt.title('Objective Improvement Over Epochs')
+    plt.legend()
+    plt.grid(True)
+    plt.tight_layout()
+
+    # Highlight the best objective
+    plt.legend()
+
+    # Show the plot
+
+    plt.savefig('objective_improvement.png')
+
+    plt.close()
 
 if __name__ == "__main__":
     main()
