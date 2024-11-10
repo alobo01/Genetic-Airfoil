@@ -17,13 +17,14 @@ Also we provide a **Streamlit** web application to visualize and compare the opt
 │   └── XFOIL.py
 ├── GA.py
 ├── SGD.py
+├── airfoilPanels.py
 ├── streamlit_app.py
 ├── run_ga.py
 ├── requirements.txt
 └── README.md
 ```
 
-- **PANELS/**: Contains modules for aerodynamic calculations using XFOIL.
+- **PANELS/**: Contains modules for aerodynamic calculations using XFOIL extracted from [Josh the engineer repository](https://github.com/jte0419/Panel_Methods).
   - `STREAMLINE_SPM.py`
   - `XFOIL.py`
 - **GA.py**: Implements the Genetic Algorithm for airfoil optimization.
@@ -31,6 +32,7 @@ Also we provide a **Streamlit** web application to visualize and compare the opt
 - **streamlit_app.py**: Streamlit web application for visualizing airfoil shapes.
 - **run_ga.py**: Automates running the GA optimization across multiple angles of attack.
 - **requirements.txt**: Lists all Python dependencies.
+- **airfoilPanel.py**: provide the panels method implemented in Josh the Engineer videos with his plots. **Not necessary** but useful for further research.
 
 ## Prerequisites
 
